@@ -1,0 +1,56 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: php-info-jmeter
+spec:
+  replicas: 30
+  selector:
+    matchLabels:
+      app: php-info-jmeter
+  template:
+    metadata:
+      labels:
+        app: php-info-jmeter
+    spec:
+      containers:
+      - name: php-info-jmeter
+        image: jasoncallaway/phpinfo
+        resources: {}
+        ports:
+        - name: http
+          protocol: TCP
+          containerPort: 80
+        - name: https
+          protocol: TCP
+          containerPort: 443
+      tolerations:
+      - key: "sku"
+        operator: "Equal"
+        value: "jmeter"
+        effect: "NoSchedule"
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: purpose
+                operator: In
+                values:
+                - jmeter
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: php-info-jmeter
+spec:
+  type: LoadBalancer
+  ports:
+  - name: http
+    protocol: TCP
+    port: 80
+  - name: https
+    protocol: TCP
+    port: 443
+  selector:
+    app: php-info-jmeter

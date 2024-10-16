@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.1.1 r1855137">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="Test Plan" enabled="true">
+      <stringProp name="TestPlan.comments"></stringProp>
+      <boolProp name="TestPlan.functional_mode">false</boolProp>
+      <boolProp name="TestPlan.tearDown_on_shutdown">true</boolProp>
+      <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+        <collectionProp name="Arguments.arguments"/>
+      </elementProp>
+      <stringProp name="TestPlan.user_define_classpath"></stringProp>
+    </TestPlan>
+    <hashTree>
+      <Arguments guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+        <collectionProp name="Arguments.arguments">
+          <elementProp name="ICAPServerAddr" elementType="Argument">
+            <stringProp name="Argument.name">ICAPServerAddr</stringProp>
+            <stringProp name="Argument.value">${__P(p_ICAPServerAddr,)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="InfluxDBServerAddr" elementType="Argument">
+            <stringProp name="Argument.name">InfluxDBServerAddr</stringProp>
+            <stringProp name="Argument.value">${__P(p_InfluxDBServerAddr,)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="InfluxDBName" elementType="Argument">
+            <stringProp name="Argument.name">InfluxDBName</stringProp>
+            <stringProp name="Argument.value">${__P(p_InfluxDBName,)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="InfluxDBPort" elementType="Argument">
+            <stringProp name="Argument.name">InfluxDBPort</stringProp>
+            <stringProp name="Argument.value">${__P(p_InfluxDBPort,)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+        </collectionProp>
+      </Arguments>
+      <hashTree/>
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Get ICAP server status" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+          <stringProp name="LoopController.loops">${__P(loopCount,)}</stringProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">${__P(noThread,)}</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">${__P(ramUp,)}</stringProp>
+        <boolProp name="ThreadGroup.scheduler">true</boolProp>
+        <stringProp name="ThreadGroup.duration">${__P(Duration)}</stringProp>
+        <stringProp name="ThreadGroup.delay"></stringProp>
+      </ThreadGroup>
+      <hashTree>
+        <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="JSR223 Sampler" enabled="true">
+          <stringProp name="scriptLanguage">java</stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="script">/* By deafault, InfluxDB get datetime of host system, Un-comment if you want to insert daytime manual
+	   	import java.time.Instant;
+		import java.time.LocalDateTime;
+		import java.time.ZoneId;
+		import java.time.ZonedDateTime;
+*/
+	   //String my_var = vars.get(&quot;ICAPServerAddr&quot;);
+        String command =&quot;/usr/local/c-icap/bin/c-icap-client -s info?view=text -i &quot; +vars.get(&quot;ICAPServerAddr&quot;)+&quot; -req any&quot;;
+	   // Print the generated status check command
+		//log.info(command);
+
+		// Create a process object and let this object execute the command
+		Process p = Runtime.getRuntime().exec(command);
+		p.waitFor();
+/*By deafault, InfluxDB get datetime of host system, Un-comment if you want to insert daytime manual
+	   LocalDateTime now = LocalDateTime.now();
+	   LocalDateTime localDateTime = LocalDateTime.now();
+        ZonedDateTime zdt = ZonedDateTime.of(localDateTime, ZoneId.systemDefault());
+ */
+
+       //Get output of execution command p
+        BufferedReader br=new BufferedReader(new InputStreamReader(p.getInputStream()));   
+        StringBuffer msrbuffer = new StringBuffer();
+        String line=&quot;&quot;;
+        //Define list measurements
+        String[] list_measurements= {&quot;Running Servers Statistics&quot;,&quot;General Statistics&quot;,&quot;Service info Statistics&quot;,&quot;Service echo Statistics&quot;,&quot;Service gw_rebuild Statistics&quot;,&quot;EOF&quot;};
+
+        //Convert text output data from command p to influxDB line syntax format
+ 	   for(int i=0;i&lt; list_measurements.length -1;i++) {
+ 	   	
+	     line = list_measurements[i].replaceAll(&quot; &quot;,&quot;_&quot;);
+	     msrbuffer.append(line+&quot; &quot;);
+	     while( (line = br.readLine()) != null ) {
+	     	
+	         if (!(line.contentEquals(list_measurements[i+1]))){
+	            	//	System.out.println(line);
+	         line = line.replaceAll(&quot;=&quot;,&quot;&quot;);
+	         line = line.replaceAll(&quot;: | : &quot;, &quot;=&quot;);
+	         line = line.replaceAll(&quot; &quot;,&quot;_&quot;);
+	         line = line.replaceAll(&quot;=(.+_.*+)&quot;,&quot;=\&quot;$1\&quot;&quot;);
+	          
+	            	//line =line.replaceAll(&quot;\n&quot;, &quot;&quot;);
+	         if ((line.length()&gt;0) &amp;&amp; (line.contains(&quot;=&quot;))) {
+	            msrbuffer.append(line+&quot;,&quot;);
+	         		} 
+	         } else {break;}
+	            }
+
+	            msrbuffer.deleteCharAt(msrbuffer.length() -1);
+/*By deafault, InfluxDB get datetime of host system, Un-comment if you want to insert daytime manual
+	            msrbuffer.append(&quot; &quot;+zdt.toInstant().toEpochMilli());
+
+*/
+	            if ((line = br.readLine()) != null) msrbuffer.append(&quot;\n&quot;);
+
+	        }
+
+        br.close();    
+       // fr.close();   
+        //log.info(msrbuffer.toString());
+        //Add influxDB format to variable data
+        vars.put(&quot;data&quot;,msrbuffer.toString());</stringProp>
+        </JSR223Sampler>
+        <hashTree/>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="HTTP Request" enabled="true">
+          <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+            <collectionProp name="Arguments.arguments">
+              <elementProp name="" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">${data}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+            </collectionProp>
+          </elementProp>
+          <stringProp name="HTTPSampler.domain">${InfluxDBServerAddr}</stringProp>
+          <stringProp name="HTTPSampler.port">${InfluxDBPort}</stringProp>
+          <stringProp name="HTTPSampler.protocol"></stringProp>
+          <stringProp name="HTTPSampler.contentEncoding"></stringProp>
+          <stringProp name="HTTPSampler.path">/write?db=${InfluxDBName}</stringProp>
+          <stringProp name="HTTPSampler.method">POST</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+          <stringProp name="HTTPSampler.connect_timeout"></stringProp>
+          <stringProp name="HTTPSampler.response_timeout"></stringProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager" enabled="true">
+            <collectionProp name="HeaderManager.headers">
+              <elementProp name="" elementType="Header">
+                <stringProp name="Header.name">Content-Type</stringProp>
+                <stringProp name="Header.value">application/json</stringProp>
+              </elementProp>
+            </collectionProp>
+          </HeaderManager>
+          <hashTree/>
+        </hashTree>
+        <ResultCollector guiclass="ViewResultsFullVisualizer" testclass="ResultCollector" testname="View Results Tree" enabled="false">
+          <boolProp name="ResultCollector.error_logging">false</boolProp>
+          <objProp>
+            <name>saveConfig</name>
+            <value class="SampleSaveConfiguration">
+              <time>true</time>
+              <latency>true</latency>
+              <timestamp>true</timestamp>
+              <success>true</success>
+              <label>true</label>
+              <code>true</code>
+              <message>true</message>
+              <threadName>true</threadName>
+              <dataType>true</dataType>
+              <encoding>false</encoding>
+              <assertions>true</assertions>
+              <subresults>true</subresults>
+              <responseData>false</responseData>
+              <samplerData>false</samplerData>
+              <xml>false</xml>
+              <fieldNames>true</fieldNames>
+              <responseHeaders>false</responseHeaders>
+              <requestHeaders>false</requestHeaders>
+              <responseDataOnError>false</responseDataOnError>
+              <saveAssertionResultsFailureMessage>true</saveAssertionResultsFailureMessage>
+              <assertionsResultsToSave>0</assertionsResultsToSave>
+              <bytes>true</bytes>
+              <sentBytes>true</sentBytes>
+              <url>true</url>
+              <threadCounts>true</threadCounts>
+              <idleTime>true</idleTime>
+              <connectTime>true</connectTime>
+            </value>
+          </objProp>
+          <stringProp name="filename">/home/son/icapserver.jtl</stringProp>
+        </ResultCollector>
+        <hashTree/>
+      </hashTree>
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>

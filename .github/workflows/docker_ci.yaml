@@ -1,0 +1,39 @@
+name: docker_ci
+
+on:
+  push:
+    paths-ignore:
+    - 'upwork-devs/**'
+    - 'kubernetes/**'
+    branches:
+    - master
+
+jobs:
+  tests:
+    name: Build and Push jmeter docker image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+      
+      - name: Build, tag, and push image to github packages
+        id: build-image
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+          REGISTRY: docker.pkg.github.com
+          REPOSITORY: ${{ github.repository }}/jmeter-icap
+        run: |
+          # Build a docker container and push it to ECR so that it can be deployed to K8s.
+          docker login $REGISTRY -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
+          docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG -f src/controller/docker-jmeter-c-icap/Dockerfile src/controller/docker-jmeter-c-icap
+          docker tag $REGISTRY/$REPOSITORY:$IMAGE_TAG $REGISTRY/$REPOSITORY:latest
+          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+          docker push $REGISTRY/$REPOSITORY:latest
+          echo "::set-output name=image::$REGISTRY/$REPOSITORY:$IMAGE_TAG"
+          docker logout
+          
+      - name: Docker logout when build fails
+        if: ${{ failure() }}
+        run: docker logout

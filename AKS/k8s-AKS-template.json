@@ -1,0 +1,116 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "MonitoringInstanceSize": {
+      "type": "string",
+      "defaultValue": "Standard_D2_v2",
+      "metadata": {
+        "description": "Select a VM size as a Kubernetes Node to support the workload that you want to run for Monitoring Resources. The size that you choose then determines factors such as processing power and memory. Azure charges an hourly price based on theat size. List of the sizes https://docs.microsoft.com/en-us/rest/api/compute/virtualmachinesizes/list#code-try-0 (put only localisation e.g.: westeurope)"
+      }
+    },
+    "MonitoringInstanceCount": {
+      "type": "int",
+      "defaultValue": 1,
+      "metadata": {
+        "description": "The number of Kubernetes Nodes for Monitoring Resources in the scale set (1-1000)."
+      }
+    },
+    "JmeterInstanceSize": {
+      "type": "string",
+      "defaultValue": "Standard_D2_v2",
+      "metadata": {
+        "description": "Select a VM size as a Kubernetes Node to support the workload that you want to run for JMeter Resources. The size that you choose then determines factors such as processing power and memory. Azure charges an hourly price based on theat size. List of the sizes https://docs.microsoft.com/en-us/rest/api/compute/virtualmachinesizes/list#code-try-0 (put only localisation e.g.: westeurope)"
+      }
+    },
+    "JmeterInstanceCount": {
+      "type": "int",
+      "defaultValue": 1,
+      "metadata": {
+        "description": "The number of Kubernetes Nodes for JMeter Resources in the scale set (1-1000)."
+      }
+    }
+  },
+  "variables": {
+    "resourceName": "[resourceGroup().name]",
+    "dnsPrefix": "[variables('resourceName')]",
+    "osDiskSizeGB": 0,
+    "kubernetesVersion": "1.17.11",
+    "networkPlugin": "kubenet",
+    "maxPods": 30,
+    "enableRBAC": true,
+    "vmssNodePool": true,
+    "windowsProfile": false,
+    "enablePrivateCluster": false,
+    "enableHttpApplicationRouting": false,
+    "enableAzurePolicy": false
+  },
+  "resources": [
+    {
+      "apiVersion": "2020-03-01",
+      "dependsOn": [],
+      "type": "Microsoft.ContainerService/managedClusters",
+      "location": "[resourceGroup().location]",
+      "name": "[variables('resourceName')]",
+      "properties": {
+        "kubernetesVersion": "[variables('kubernetesVersion')]",
+        "enableRBAC": "[variables('enableRBAC')]",
+        "dnsPrefix": "[variables('dnsPrefix')]",
+        "agentPoolProfiles": [
+          {
+            "name": "monitoring",
+            "osDiskSizeGB": "[variables('osDiskSizeGB')]",
+            "count": "[parameters('MonitoringInstanceCount')]",
+            "vmSize": "[parameters('MonitoringInstanceSize')]",
+            "storageProfile": "ManagedDisks",
+            "type": "VirtualMachineScaleSets",
+            "nodeLabels": {},
+            "mode": "System",
+            "osType": "Linux"
+          },
+          {
+            "name": "jmeter",
+            "osDiskSizeGB": "[variables('osDiskSizeGB')]",
+            "count": "[parameters('JmeterInstanceCount')]",
+            "vmSize": "[parameters('JmeterInstanceSize')]",
+            "storageProfile": "ManagedDisks",
+            "type": "VirtualMachineScaleSets",
+            "nodeLabels": {
+              "purpose": "jmeter"
+            },
+            "nodeTaints": [
+              "sku=jmeter:NoSchedule"
+            ],
+            "mode": "User",
+            "osType": "Linux"
+          }
+        ],
+        "networkProfile": {
+          "loadBalancerSku": "standard",
+          "networkPlugin": "[variables('networkPlugin')]"
+        },
+        "apiServerAccessProfile": {
+          "enablePrivateCluster": "[variables('enablePrivateCluster')]"
+        },
+        "addonProfiles": {
+          "httpApplicationRouting": {
+            "enabled": "[variables('enableHttpApplicationRouting')]"
+          },
+          "azurePolicy": {
+            "enabled": "[variables('enableAzurePolicy')]"
+          }
+        }
+      },
+      "tags": {},
+      "identity": {
+        "type": "SystemAssigned"
+      }
+    }
+  ],
+  "outputs": {
+    "controlPlaneFQDN": {
+      "type": "string",
+      "value": "[reference(concat('Microsoft.ContainerService/managedClusters/', variables('resourceName'))).fqdn]"
+    }
+  }
+}

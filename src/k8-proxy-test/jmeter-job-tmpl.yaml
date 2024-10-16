@@ -1,0 +1,67 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: jmeterjob-$NO
+  labels:
+    env: test
+    jobgroup: jmeter
+spec:
+  ttlSecondsAfterFinished: 100
+  template:
+    metadata:
+      name: jmeter
+      labels:
+        jobgroup: jmeter  
+    spec:
+      imagePullSecrets:
+      - name: docker-secret
+      containers:
+      - name: jmeter
+        image: glasswallsolutions/cloud-qa:proxyv1.1
+        # imagePullPolicy: Always
+        # resources:
+        # requests:
+        #   memory: "1024Mi"
+        #   cpu: "500m"
+        # limits:
+        #   memory: "1024Mi"
+        #   cpu: "500m"     
+        env:
+          # Log Level (Default to Info)
+          - name: LOG_LEVEL
+            value: info
+          - name: MY_NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: MY_POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: MY_POD_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+          - name: MY_POD_SERVICE_ACCOUNT
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.serviceAccountName        
+      #   volumeMounts:
+      #   - name: jmetervol
+      #     mountPath: "/usr/share/jmx"
+      #     readOnly: true
+      #   - name: filesvol
+      #     mountPath: "/usr/share/data"
+      #     readOnly: true
+      # volumes:
+      # - name: jmetervol
+      #   secret:
+      #     secretName: jmeterconf          
+      # - name: filesvol
+      #   secret:
+      #     secretName: filesconf
+      restartPolicy: Never
